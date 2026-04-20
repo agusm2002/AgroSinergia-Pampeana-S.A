@@ -28,13 +28,6 @@ Desde la raiz del proyecto:
 docker compose up --build
 ```
 
-## URLs
-
-- Frontend publico: http://localhost:3000
-- API backend: http://localhost:3011
-- Panel Refine: http://localhost:3002
-- PostgreSQL: localhost:5432
-
 ## Datos de base
 
 Al iniciar por primera vez, el backend crea las tablas y carga datos de ejemplo automaticamente.
