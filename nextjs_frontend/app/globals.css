@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f0e8;
+  --foreground: #1f2f2a;
+  --surface: #fffdf8;
+  --surface-strong: #e3efe7;
+  --brand: #2e7d57;
+  --brand-2: #c97536;
+  --ring: #214d3c;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+body {
+  background:
+    radial-gradient(circle at 80% 0%, rgb(70 129 94 / 15%), transparent 32%),
+    radial-gradient(circle at 0% 100%, rgb(201 117 54 / 18%), transparent 35%),
+    linear-gradient(135deg, #f8f4ec 0%, #f0ebe0 100%);
+  color: var(--foreground);
+  font-family: var(--font-body), sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.app-shell {
+  min-height: 100vh;
+  width: 100%;
+}
+
+.glass-card {
+  background: color-mix(in srgb, var(--surface) 88%, white 12%);
+  border: 1px solid color-mix(in srgb, var(--surface-strong) 52%, #7ca88f 20%);
+  box-shadow: 0 12px 30px rgb(25 44 36 / 10%);
+  backdrop-filter: blur(4px);
+}
+
+.metric-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid rgb(37 76 61 / 22%);
+  background: rgb(255 255 255 / 78%);
+  padding: 0.42rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #274439;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 960px) {
+  .hero-grid {
+    grid-template-columns: 1.5fr 1fr;
+  }
+}
+
+.reveal {
+  animation: reveal 650ms ease-out both;
+}
+
+.delay-1 {
+  animation-delay: 120ms;
+}
+
+.delay-2 {
+  animation-delay: 220ms;
+}
+
+.delay-3 {
+  animation-delay: 300ms;
+}
+
+.pulse-dot {
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.45;
+  }
+}
