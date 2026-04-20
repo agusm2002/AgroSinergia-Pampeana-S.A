@@ -49,4 +49,21 @@ Definidas en `docker-compose.yaml`:
 - El panel admin consume `/api` en el mismo origen; Next.js proxyea internamente hacia `backend:3001`.
 - Si `3001` esta ocupado por Uptime Kuma (u otro servicio), no hay conflicto: este stack usa `3011` por defecto.
 - Para cambiarlo: `BACKEND_HOST_PORT=3021 docker compose up -d`.
-# AgroSinergia Pampeana S.A.
+
+## Estrategia de ramas (Git Flow)
+
+Este repositorio usa Git Flow para separar desarrollo diario, estabilizacion de versiones y correcciones urgentes.
+
+- `main`: rama estable de produccion. Solo recibe cambios listos para publicar.
+- `develop`: rama de integracion. Recibe funcionalidades terminadas antes de una release.
+- `feature/*`: ramas temporales para trabajo funcional. Nacen desde `develop`, vuelven a `develop` y se eliminan al cerrar su ciclo.
+- `release/*`: ramas temporales para preparar una version. Se usan para QA, ajustes finales y versionado antes de fusionar en `main` (y sincronizar en `develop`).
+- `hotfix/*`: ramas temporales para incidentes criticos en produccion. Nacen desde `main`, se fusionan a `main` y `develop`, y luego se eliminan.
+- `support/*`: ramas de mantenimiento para una linea mayor en paralelo cuando se necesita soporte extendido.
+
+### Convencion de nombres
+
+- `feature/<tema-corto>`
+- `release/<semver>`
+- `hotfix/<semver>-<motivo-corto>`
+- `support/<major>.x`
