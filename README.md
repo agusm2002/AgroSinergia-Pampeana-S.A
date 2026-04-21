@@ -80,9 +80,7 @@ Workflows activos:
   - trigger: PR hacia `develop` o `main`
   - ejecuta: `lint`, `tests`, `build`
   - publica imagenes en DockerHub
-  - despliega con `docker compose` en `self-hosted` segun rama destino:
-  - PR a `develop` -> `staging` (`self-hosted`, `linux`, `staging`)
-  - PR a `main` -> `production` (`self-hosted`, `linux`, `production`)
+  - no despliega ambientes (evita conflicto con environment protection rules en `refs/pull/*`)
 
 - `.github/workflows/develop.yml`
   - trigger: `push` a `develop`
@@ -107,3 +105,4 @@ Notas operativas:
 - El deploy usa `docker compose pull` + `docker compose up -d --no-build --remove-orphans`.
 - La separacion de staging/production se hace por variables de compose (nombre de proyecto, prefijo de contenedores, red, volumen y puertos).
 - Los PR desde forks no despliegan (restriccion por uso de secrets).
+- Los despliegues a `staging` y `production` ocurren en `push` a `develop` y `main` respectivamente.
