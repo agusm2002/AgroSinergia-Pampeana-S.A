@@ -8,15 +8,24 @@ describe('AppController', () => {
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
+      providers: [
+        {
+          provide: AppService,
+          useValue: {},
+        },
+      ],
     }).compile();
 
     appController = app.get<AppController>(AppController);
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+  describe('api info', () => {
+    it('should return API metadata', () => {
+      expect(appController.getApiInfo()).toEqual({
+        service: 'AgroSinergia API',
+        version: '1.0.0',
+        status: 'ok',
+      });
     });
   });
 });
