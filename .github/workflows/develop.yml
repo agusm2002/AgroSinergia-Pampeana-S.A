@@ -126,6 +126,19 @@ jobs:
 
           docker compose down --remove-orphans || true
 
+          is_port_busy() {
+            local port="$1"
+            if command -v ss >/dev/null 2>&1; then
+              ss -ltnH "sport = :${port}" | grep -q .
+              return
+            fi
+            if command -v netstat >/dev/null 2>&1; then
+              netstat -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "[\\.:]${port}$"
+              return
+            fi
+            return 1
+          }
+
           for required_port in "$POSTGRES_HOST_PORT" "$BACKEND_HOST_PORT" "$FRONTEND_HOST_PORT" "$REFINE_HOST_PORT"; do
             conflicts="$(docker ps --filter "publish=${required_port}" --format '{{.ID}} {{.Names}}')"
             if [ -n "$conflicts" ]; then
@@ -137,6 +150,27 @@ jobs:
                 echo " - removing ${container_name} (${container_id})"
                 docker rm -f "$container_id"
               done <<< "$conflicts"
+            fi
+          done
+
+          if is_port_busy "$POSTGRES_HOST_PORT"; then
+            fallback_postgres_port="${POSTGRES_HOST_PORT_FALLBACK:-55434}"
+            if [ "$fallback_postgres_port" != "$POSTGRES_HOST_PORT" ] && ! is_port_busy "$fallback_postgres_port"; then
+              echo "Host port ${POSTGRES_HOST_PORT} is in use by a non-docker process."
+              echo "Using fallback POSTGRES_HOST_PORT=${fallback_postgres_port}."
+              export POSTGRES_HOST_PORT="$fallback_postgres_port"
+            else
+              echo "Host port ${POSTGRES_HOST_PORT} is unavailable and fallback ${fallback_postgres_port} is also busy."
+              echo "Set POSTGRES_HOST_PORT_FALLBACK to a free port or free the current one."
+              exit 1
+            fi
+          fi
+
+          for required_port in "$BACKEND_HOST_PORT" "$FRONTEND_HOST_PORT" "$REFINE_HOST_PORT"; do
+            if is_port_busy "$required_port"; then
+              echo "Host port ${required_port} is still in use by a non-docker process."
+              echo "Free the port or update workflow port variables before deploy."
+              exit 1
             fi
           done
 
