@@ -33,7 +33,12 @@ type PgError = Error & {
   detail?: string;
 };
 
-const FIELD_STATUSES = ['Planificado', 'En Siembra', 'En Seguimiento', 'Cosechado'];
+const FIELD_STATUSES = [
+  'Planificado',
+  'En Siembra',
+  'En Seguimiento',
+  'Cosechado',
+];
 const CAMPAIGN_STATUSES = ['Preparacion', 'En Curso', 'Finalizada'];
 const TASK_STATUSES = ['Pendiente', 'En Progreso', 'Completada'];
 const TASK_PRIORITIES = ['Alta', 'Media', 'Baja'];
@@ -329,14 +334,25 @@ export class AppService {
   async createCampaign(payload: Record<string, unknown>) {
     const fieldId = this.readInteger(payload.field_id, 'field_id');
     const season = this.readText(payload.season, 'season');
-    const budgetUsd = this.readNumber(payload.budget_usd, 'budget_usd', false, 0);
+    const budgetUsd = this.readNumber(
+      payload.budget_usd,
+      'budget_usd',
+      false,
+      0,
+    );
     const expectedYield = this.readNumber(
       payload.expected_yield_tn,
       'expected_yield_tn',
       false,
       0,
     );
-    const progress = this.readInteger(payload.progress, 'progress', false, 0, 100);
+    const progress = this.readInteger(
+      payload.progress,
+      'progress',
+      false,
+      0,
+      100,
+    );
     const status = this.readEnum(payload.status, 'status', CAMPAIGN_STATUSES);
     const startDate = this.readDate(payload.start_date, 'start_date');
     const endDate = this.readDate(payload.end_date, 'end_date');
@@ -357,7 +373,16 @@ export class AppService {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id, field_id, season, budget_usd, expected_yield_tn, progress, status, start_date, end_date, created_at, updated_at
         `,
-        [fieldId, season, budgetUsd, expectedYield, progress, status, startDate, endDate],
+        [
+          fieldId,
+          season,
+          budgetUsd,
+          expectedYield,
+          progress,
+          status,
+          startDate,
+          endDate,
+        ],
       );
 
       return this.getCampaign(Number(created.id));
@@ -386,12 +411,19 @@ export class AppService {
     }
     if (this.hasOwn(payload, 'expected_yield_tn')) {
       params.push(
-        this.readNumber(payload.expected_yield_tn, 'expected_yield_tn', false, 0),
+        this.readNumber(
+          payload.expected_yield_tn,
+          'expected_yield_tn',
+          false,
+          0,
+        ),
       );
       updates.push(`expected_yield_tn = $${params.length}`);
     }
     if (this.hasOwn(payload, 'progress')) {
-      params.push(this.readInteger(payload.progress, 'progress', false, 0, 100));
+      params.push(
+        this.readInteger(payload.progress, 'progress', false, 0, 100),
+      );
       updates.push(`progress = $${params.length}`);
     }
     if (this.hasOwn(payload, 'status')) {
@@ -488,7 +520,11 @@ export class AppService {
     const title = this.readText(payload.title, 'title');
     const assignedTo = this.readText(payload.assigned_to, 'assigned_to');
     const dueDate = this.readDate(payload.due_date, 'due_date');
-    const priority = this.readEnum(payload.priority, 'priority', TASK_PRIORITIES);
+    const priority = this.readEnum(
+      payload.priority,
+      'priority',
+      TASK_PRIORITIES,
+    );
     const status = this.readEnum(payload.status, 'status', TASK_STATUSES);
     const notes = this.readText(payload.notes, 'notes', false, '');
 
@@ -617,7 +653,8 @@ export class AppService {
     const end = Number.parseInt(String(query._end ?? String(start + 10)), 10);
 
     const safeStart = Number.isFinite(start) && start >= 0 ? start : 0;
-    const safeEnd = Number.isFinite(end) && end > safeStart ? end : safeStart + 10;
+    const safeEnd =
+      Number.isFinite(end) && end > safeStart ? end : safeStart + 10;
 
     const limit = Math.min(safeEnd - safeStart, 100);
     const offset = safeStart;
@@ -688,13 +725,13 @@ export class AppService {
       return undefined;
     }
     if (Array.isArray(value)) {
-      return value[value.length - 1];
+      return value.at(-1);
     }
     return value;
   }
 
-  private hasOwn(payload: Record<string, unknown>, key: string) {
-    return Object.prototype.hasOwnProperty.call(payload, key);
+  private hasOwn(payload: Record<string, unknown>, key: string): boolean {
+    return Object.hasOwn(payload, key);
   }
 
   private readText(
@@ -737,10 +774,15 @@ export class AppService {
       throw new BadRequestException(`El campo ${field} es obligatorio.`);
     }
 
-    const parsed =
-      typeof value === 'number'
-        ? value
-        : Number.parseFloat(String(value).replace(',', '.'));
+    let parsed: number;
+
+    if (typeof value === 'number') {
+      parsed = value;
+    } else if (typeof value === 'string') {
+      parsed = Number.parseFloat(value.replace(',', '.'));
+    } else {
+      throw new BadRequestException(`El campo ${field} debe ser numerico.`);
+    }
 
     if (!Number.isFinite(parsed)) {
       throw new BadRequestException(`El campo ${field} debe ser numerico.`);
@@ -775,10 +817,15 @@ export class AppService {
       throw new BadRequestException(`El campo ${field} es obligatorio.`);
     }
 
-    const parsed =
-      typeof value === 'number'
-        ? value
-        : Number.parseInt(String(value), 10);
+    let parsed: number;
+
+    if (typeof value === 'number') {
+      parsed = value;
+    } else if (typeof value === 'string') {
+      parsed = Number.parseInt(value, 10);
+    } else {
+      throw new BadRequestException(`El campo ${field} debe ser entero.`);
+    }
 
     if (!Number.isInteger(parsed)) {
       throw new BadRequestException(`El campo ${field} debe ser entero.`);
