@@ -76,8 +76,10 @@ jobs:
           tags: |
             ${{ steps.vars.outputs.image_name }}:${{ steps.vars.outputs.tag_immutable }}
             ${{ steps.vars.outputs.image_name }}:staging-latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=develop-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=develop-${{ matrix.service }}
 
   deploy-staging:
     name: Deploy staging (self-hosted)

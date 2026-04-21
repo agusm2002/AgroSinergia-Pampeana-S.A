@@ -192,6 +192,8 @@ jobs:
           tags: |
             ${{ steps.vars.outputs.image_name }}:${{ steps.vars.outputs.tag_immutable }}
             ${{ steps.vars.outputs.image_name }}:${{ steps.vars.outputs.tag_channel }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=pr-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=pr-${{ matrix.service }}
 
