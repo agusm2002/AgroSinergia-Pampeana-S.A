@@ -159,5 +159,21 @@ jobs:
           export FRONTEND_IMAGE="${NAMESPACE}/agrosinergia-frontend:${TAG}"
           export REFINE_IMAGE="${NAMESPACE}/agrosinergia-refine:${TAG}"
 
+          docker compose down --remove-orphans || true
+
+          for required_port in "$POSTGRES_HOST_PORT" "$BACKEND_HOST_PORT" "$FRONTEND_HOST_PORT" "$REFINE_HOST_PORT"; do
+            conflicts="$(docker ps --filter "publish=${required_port}" --format '{{.ID}} {{.Names}}')"
+            if [ -n "$conflicts" ]; then
+              echo "Port ${required_port} is occupied. Removing conflicting containers..."
+              while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                container_id="$(echo "$line" | awk '{print $1}')"
+                container_name="$(echo "$line" | awk '{print $2}')"
+                echo " - removing ${container_name} (${container_id})"
+                docker rm -f "$container_id"
+              done <<< "$conflicts"
+            fi
+          done
+
           docker compose pull
           docker compose up -d --no-build --remove-orphans
