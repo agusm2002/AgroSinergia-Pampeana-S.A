@@ -1,0 +1,115 @@
+name: Develop CI/CD
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: develop-deploy
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    name: Build & Push DockerHub (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            context: ./nestjs_backend
+            dockerfile: ./nestjs_backend/Dockerfile
+          - service: frontend
+            context: ./nextjs_frontend
+            dockerfile: ./nextjs_frontend/Dockerfile
+          - service: refine
+            context: ./refine_control_panel/admin-panel
+            dockerfile: ./refine_control_panel/admin-panel/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Resolve image tags
+        id: vars
+        run: |
+          NAMESPACE='${{ secrets.DOCKERHUB_NAMESPACE }}'
+          if [ -z "$NAMESPACE" ]; then
+            NAMESPACE='${{ secrets.DOCKERHUB_USERNAME }}'
+          fi
+
+          IMAGE_NAME="${NAMESPACE}/agrosinergia-${{ matrix.service }}"
+          TAG_IMMUTABLE="staging-${GITHUB_SHA::7}"
+
+          echo "image_name=${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "tag_immutable=${TAG_IMMUTABLE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ steps.vars.outputs.image_name }}:${{ steps.vars.outputs.tag_immutable }}
+            ${{ steps.vars.outputs.image_name }}:staging-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-staging:
+    name: Deploy staging (self-hosted)
+    runs-on: [self-hosted, linux, staging]
+    needs: build-and-push
+    environment: staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Deploy staging stack with Docker Compose
+        run: |
+          set -e
+
+          NAMESPACE='${{ secrets.DOCKERHUB_NAMESPACE }}'
+          if [ -z "$NAMESPACE" ]; then
+            NAMESPACE='${{ secrets.DOCKERHUB_USERNAME }}'
+          fi
+
+          TAG="staging-${GITHUB_SHA::7}"
+
+          export COMPOSE_PROJECT_NAME=agrosinergia_staging
+          export CONTAINER_PREFIX=agrosinergia_stg
+          export NETWORK_NAME=agrosinergia_stg_network
+          export POSTGRES_VOLUME_NAME=agrosinergia_stg_postgres_data
+
+          export POSTGRES_DB=agrosinergia_staging
+          export POSTGRES_USER=agrosinergia_staging
+          export POSTGRES_PASSWORD='${{ secrets.STAGING_POSTGRES_PASSWORD }}'
+          if [ -z "$POSTGRES_PASSWORD" ]; then
+            POSTGRES_PASSWORD=agrosinergia_staging
+          fi
+
+          export POSTGRES_HOST_PORT=5433
+          export BACKEND_HOST_PORT=3111
+          export FRONTEND_HOST_PORT=3100
+          export REFINE_HOST_PORT=3102
+
+          export BACKEND_IMAGE="${NAMESPACE}/agrosinergia-backend:${TAG}"
+          export FRONTEND_IMAGE="${NAMESPACE}/agrosinergia-frontend:${TAG}"
+          export REFINE_IMAGE="${NAMESPACE}/agrosinergia-refine:${TAG}"
+
+          docker compose pull
+          docker compose up -d --no-build --remove-orphans

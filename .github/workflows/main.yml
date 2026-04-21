@@ -1,0 +1,150 @@
+name: Main CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (backend)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: nestjs_backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: nestjs_backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test -- --runInBand
+
+  build-release-and-push:
+    name: Build release & Push DockerHub (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    needs: tests
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            context: ./nestjs_backend
+            dockerfile: ./nestjs_backend/Dockerfile
+          - service: frontend
+            context: ./nextjs_frontend
+            dockerfile: ./nextjs_frontend/Dockerfile
+          - service: refine
+            context: ./refine_control_panel/admin-panel
+            dockerfile: ./refine_control_panel/admin-panel/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Resolve image metadata
+        id: vars
+        run: |
+          NAMESPACE='${{ secrets.DOCKERHUB_NAMESPACE }}'
+          if [ -z "$NAMESPACE" ]; then
+            NAMESPACE='${{ secrets.DOCKERHUB_USERNAME }}'
+          fi
+
+          IMAGE_NAME="${NAMESPACE}/agrosinergia-${{ matrix.service }}"
+          VERSION=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          if [ -z "$VERSION" ]; then
+            VERSION="v0.0.0-${GITHUB_SHA::7}"
+          fi
+
+          TAG_IMMUTABLE="production-${GITHUB_SHA::7}"
+
+          echo "image_name=$IMAGE_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag_immutable=$TAG_IMMUTABLE" >> "$GITHUB_OUTPUT"
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push release image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ steps.vars.outputs.image_name }}:latest
+            ${{ steps.vars.outputs.image_name }}:${{ steps.vars.outputs.version }}
+            ${{ steps.vars.outputs.image_name }}:${{ steps.vars.outputs.tag_immutable }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy-production:
+    name: Deploy production (self-hosted)
+    runs-on: [self-hosted, linux, production]
+    needs: build-release-and-push
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Deploy production stack with Docker Compose
+        run: |
+          set -e
+
+          NAMESPACE='${{ secrets.DOCKERHUB_NAMESPACE }}'
+          if [ -z "$NAMESPACE" ]; then
+            NAMESPACE='${{ secrets.DOCKERHUB_USERNAME }}'
+          fi
+
+          TAG="production-${GITHUB_SHA::7}"
+
+          export COMPOSE_PROJECT_NAME=agrosinergia_production
+          export CONTAINER_PREFIX=agrosinergia_prod
+          export NETWORK_NAME=agrosinergia_prod_network
+          export POSTGRES_VOLUME_NAME=agrosinergia_prod_postgres_data
+
+          export POSTGRES_DB=agrosinergia
+          export POSTGRES_USER=agrosinergia
+          export POSTGRES_PASSWORD='${{ secrets.PRODUCTION_POSTGRES_PASSWORD }}'
+          if [ -z "$POSTGRES_PASSWORD" ]; then
+            POSTGRES_PASSWORD=agrosinergia
+          fi
+
+          export POSTGRES_HOST_PORT=5432
+          export BACKEND_HOST_PORT=3011
+          export FRONTEND_HOST_PORT=3000
+          export REFINE_HOST_PORT=3002
+
+          export BACKEND_IMAGE="${NAMESPACE}/agrosinergia-backend:${TAG}"
+          export FRONTEND_IMAGE="${NAMESPACE}/agrosinergia-frontend:${TAG}"
+          export REFINE_IMAGE="${NAMESPACE}/agrosinergia-refine:${TAG}"
+
+          docker compose pull
+          docker compose up -d --no-build --remove-orphans
