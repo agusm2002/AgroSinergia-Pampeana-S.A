@@ -59,6 +59,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
       - name: Fetch tags
         run: git fetch --tags --force
 
@@ -91,6 +97,7 @@ jobs:
       - name: Build and push release image
         uses: docker/build-push-action@v6
         with:
+          builder: ${{ steps.buildx.outputs.name }}
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
